@@ -2,6 +2,8 @@
 
 Track OpenClaw token usage and cost from session transcripts.
 
+> 🌏 **Other Languages:** [简体中文 (Chinese)](./README_CN.md)
+
 ## What It Does
 
 - Scans session transcript files (`~/.openclaw/agents/*/sessions/*.jsonl`)
