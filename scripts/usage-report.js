@@ -220,6 +220,8 @@ function printDetailedReport(modelStats, title) {
   let totalCost = 0;
   let totalTokens = 0;
   let totalMessages = 0;
+  let totalInput = 0;
+  let totalCacheRead = 0;
   
   for (const [model, stats] of Object.entries(modelStats)) {
     const cost = calculateCost(stats, model);
@@ -228,8 +230,15 @@ function printDetailedReport(modelStats, title) {
     totalCost += cost;
     totalTokens += tokens;
     totalMessages += stats.messages;
+    totalInput += stats.input;
+    totalCacheRead += stats.cacheRead;
     
     const costs = getModelCost(model);
+    
+    // 计算缓存命中率
+    const cacheHitRate = (stats.input + stats.cacheRead) > 0 
+      ? (stats.cacheRead / (stats.input + stats.cacheRead) * 100).toFixed(1)
+      : '0.0';
     
     console.log(`\n📊 ${model}`);
     console.log(`   Messages: ${stats.messages}`);
@@ -237,11 +246,18 @@ function printDetailedReport(modelStats, title) {
     console.log(`   Output:     ${formatTokens(stats.output).padStart(8)} tokens  →  ${formatUsd(stats.output * costs.output / 1_000_000)}`);
     console.log(`   CacheRead:  ${formatTokens(stats.cacheRead).padStart(8)} tokens  →  ${formatUsd(stats.cacheRead * costs.cacheRead / 1_000_000)}`);
     console.log(`   CacheWrite: ${formatTokens(stats.cacheWrite).padStart(8)} tokens  →  ${formatUsd(stats.cacheWrite * costs.cacheWrite / 1_000_000)}`);
+    console.log(`   💾 Cache Hit Rate: ${cacheHitRate}%`);
     console.log(`   Total:      ${formatTokens(tokens).padStart(8)} tokens  →  ${formatUsd(cost)}`);
   }
   
+  // 计算全局缓存命中率
+  const globalCacheHitRate = (totalInput + totalCacheRead) > 0
+    ? (totalCacheRead / (totalInput + totalCacheRead) * 100).toFixed(1)
+    : '0.0';
+  
   console.log('\n' + '='.repeat(80));
   console.log(`💰 Grand Total: ${formatUsd(totalCost)} · ${formatTokens(totalTokens)} tokens · ${totalMessages} messages`);
+  console.log(`💾 Overall Cache Hit Rate: ${globalCacheHitRate}%`);
   console.log(`📈 Average: ${formatUsd(totalCost / totalMessages)} per message\n`);
 }
 
@@ -258,6 +274,8 @@ function printSimpleReport(modelStats, title) {
   let totalCost = 0;
   let totalTokens = 0;
   let totalMessages = 0;
+  let totalInput = 0;
+  let totalCacheRead = 0;
   
   for (const [model, stats] of Object.entries(modelStats)) {
     const cost = calculateCost(stats, model);
@@ -266,10 +284,18 @@ function printSimpleReport(modelStats, title) {
     totalCost += cost;
     totalTokens += tokens;
     totalMessages += stats.messages;
+    totalInput += stats.input;
+    totalCacheRead += stats.cacheRead;
   }
+  
+  // 计算全局缓存命中率
+  const globalCacheHitRate = (totalInput + totalCacheRead) > 0
+    ? (totalCacheRead / (totalInput + totalCacheRead) * 100).toFixed(1)
+    : '0.0';
   
   console.log(`Total: ${formatUsd(totalCost)} · ${formatTokens(totalTokens)} tokens`);
   console.log(`Messages: ${totalMessages}`);
+  console.log(`Cache Hit Rate: ${globalCacheHitRate}%`);
   console.log(`Average: ${formatUsd(totalCost / totalMessages)} per message\n`);
 }
 

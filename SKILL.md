@@ -44,6 +44,7 @@ node scripts/usage-report.js --days=7 --simple
    Output:        47.6k tokens  →  $0.71
    CacheRead:      5.0m tokens  →  $1.50
    CacheWrite:     1.4m tokens  →  $5.28
+   💾 Cache Hit Rate: 99.8%
    Total:          6.5m tokens  →  $7.50
 
 📊 moonshot/kimi-k2.5
@@ -51,10 +52,12 @@ node scripts/usage-report.js --days=7 --simple
    Input:        813.3k tokens  →  $0.49
    Output:         6.2k tokens  →  $0.01
    CacheRead:    303.6k tokens  →  $0.09
+   💾 Cache Hit Rate: 27.2%
    Total:          1.1m tokens  →  $0.59
 
 ================================================================================
 💰 Grand Total: $7.50 · 6.5m tokens · 124 messages
+💾 Overall Cache Hit Rate: 80.4%
 📈 Average: $0.06 per message
 ```
 
@@ -65,6 +68,7 @@ node scripts/usage-report.js --days=7 --simple
 
 Total: $208.97 · 258.1m tokens
 Messages: 3765
+Cache Hit Rate: 94.9%
 Average: $0.06 per message
 ```
 
@@ -74,7 +78,8 @@ Average: $0.06 per message
 2. **基于 timestamp 过滤** - 读取每条消息的 `timestamp` 字段（UTC），转换到 Asia/Shanghai 时区后按日期过滤
 3. **提取 usage 数据** - 从每条 assistant 消息中提取 token 使用量
 4. **计算成本** - 基于模型定价（input/output/cacheRead/cacheWrite）
-5. **聚合统计** - 按模型分组汇总
+5. **计算缓存命中率** - `cacheRead / (input + cacheRead) × 100%`
+6. **聚合统计** - 按模型分组汇总，输出总览和分模型命中率
 
 ### 为什么用 timestamp 而不是文件 mtime？
 
