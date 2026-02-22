@@ -9,7 +9,7 @@
  *   node usage-report.js --yesterday        # 昨天详细报告
  *   node usage-report.js --date=2026-02-17  # 指定日期
  *   node usage-report.js --days=7           # 最近 7 天
- *   node usage-report.js --session          # 当前 session
+ *   node usage-report.js --session          # 当前 session（最近活跃）
  *   node usage-report.js --simple           # 简洁输出（不分模型）
  */
 
@@ -17,48 +17,9 @@ import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
 import { fileURLToPath } from 'url';
+import { getModelCost } from './pricing.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// 模型成本配置（美元/百万 tokens）
-const MODEL_COSTS = {
-  'claude-sonnet-4-5': {
-    input: 3.00,
-    output: 15.00,
-    cacheRead: 0.30,
-    cacheWrite: 3.75
-  },
-  'claude-sonnet-4-6': {
-    input: 3.00,
-    output: 15.00,
-    cacheRead: 0.30,
-    cacheWrite: 3.75
-  },
-  'claude-opus-4': {
-    input: 15.00,
-    output: 75.00,
-    cacheRead: 1.50,
-    cacheWrite: 18.75
-  },
-  'MiniMax-M2.5-highspeed': {
-    input: 0.60,
-    output: 2.40,
-    cacheRead: 0.03,
-    cacheWrite: 0.375
-  },
-  'MiniMax-M2.5': {
-    input: 0.30,
-    output: 1.20,
-    cacheRead: 0.03,
-    cacheWrite: 0.375
-  },
-  'MiniMax-M2.1': {
-    input: 0.30,
-    output: 1.20,
-    cacheRead: 0.03,
-    cacheWrite: 0.375
-  }
-};
 
 // 读取 JSONL 文件
 async function* readJsonl(filePath) {
@@ -141,7 +102,7 @@ async function scanByDateRange(sessionsDir, startDate, endDate) {
       const usage = message.usage || entry.usage;
       if (!usage) continue;
       
-      const model = message.model || entry.model || 'claude-sonnet-4-5';
+      const model = message.model || entry.model || 'claude-sonnet-4-6';
       
       // 提取 token 数据
       const input = usage.input || 0;
@@ -172,45 +133,52 @@ async function scanByDateRange(sessionsDir, startDate, endDate) {
   return modelStats;
 }
 
-// 扫描当前 session
-async function scanCurrentSession(sessionsDir) {
-  const sessionFile = path.join(sessionsDir, '1b9301f1-f21d-45e1-9a2a-e726ebfdeb5d.jsonl');
-  
-  if (!fs.existsSync(sessionFile)) {
-    return {};
-  }
-  
+// 扫描最近的 session（按文件修改时间排序，取最活跃的几个）
+async function scanRecentSessions(sessionsDir, maxFiles = 3) {
   const modelStats = {};
   
-  for await (const entry of readJsonl(sessionFile)) {
-    const message = entry.message;
-    if (!message || message.role !== 'assistant') continue;
-    
-    const usage = message.usage || entry.usage;
-    if (!usage) continue;
-    
-    const model = message.model || entry.model || 'claude-sonnet-4-5';
-    
-    const input = usage.input || 0;
-    const output = usage.output || 0;
-    const cacheRead = usage.cacheRead || usage.cache_read_input_tokens || 0;
-    const cacheWrite = usage.cacheWrite || usage.cache_creation_input_tokens || 0;
-    
-    if (!modelStats[model]) {
-      modelStats[model] = {
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
-        messages: 0
-      };
+  // 获取所有 jsonl 文件并按修改时间排序
+  const files = fs.readdirSync(sessionsDir)
+    .filter(f => f.endsWith('.jsonl'))
+    .map(f => ({
+      name: f,
+      path: path.join(sessionsDir, f),
+      mtime: fs.statSync(path.join(sessionsDir, f)).mtime
+    }))
+    .sort((a, b) => b.mtime - a.mtime)
+    .slice(0, maxFiles);
+  
+  for (const file of files) {
+    for await (const entry of readJsonl(file.path)) {
+      const message = entry.message;
+      if (!message || message.role !== 'assistant') continue;
+      
+      const usage = message.usage || entry.usage;
+      if (!usage) continue;
+      
+      const model = message.model || entry.model || 'claude-sonnet-4-6';
+      
+      const input = usage.input || 0;
+      const output = usage.output || 0;
+      const cacheRead = usage.cacheRead || usage.cache_read_input_tokens || 0;
+      const cacheWrite = usage.cacheWrite || usage.cache_creation_input_tokens || 0;
+      
+      if (!modelStats[model]) {
+        modelStats[model] = {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          messages: 0
+        };
+      }
+      
+      modelStats[model].input += input;
+      modelStats[model].output += output;
+      modelStats[model].cacheRead += cacheRead;
+      modelStats[model].cacheWrite += cacheWrite;
+      modelStats[model].messages += 1;
     }
-    
-    modelStats[model].input += input;
-    modelStats[model].output += output;
-    modelStats[model].cacheRead += cacheRead;
-    modelStats[model].cacheWrite += cacheWrite;
-    modelStats[model].messages += 1;
   }
   
   return modelStats;
@@ -218,7 +186,7 @@ async function scanCurrentSession(sessionsDir) {
 
 // 计算成本
 function calculateCost(tokens, model) {
-  const costs = MODEL_COSTS[model] || MODEL_COSTS['claude-sonnet-4-5'];
+  const costs = getModelCost(model);
   
   return (
     (tokens.input * costs.input) +
@@ -261,7 +229,7 @@ function printDetailedReport(modelStats, title) {
     totalTokens += tokens;
     totalMessages += stats.messages;
     
-    const costs = MODEL_COSTS[model] || MODEL_COSTS['claude-sonnet-4-5'];
+    const costs = getModelCost(model);
     
     console.log(`\n📊 ${model}`);
     console.log(`   Messages: ${stats.messages}`);
@@ -348,14 +316,14 @@ async function main() {
   let title = '';
   
   if (mode === 'session') {
-    // 当前 session（扫描所有 agent 目录）
+    // 最近活跃的 session（扫描所有 agent 目录的最近文件）
     for (const dir of sessionsDirs) {
       if (fs.existsSync(dir)) {
-        const stats = await scanCurrentSession(dir);
+        const stats = await scanRecentSessions(dir, 3);
         mergeModelStats(modelStats, stats);
       }
     }
-    title = 'Current Session Usage';
+    title = 'Recent Sessions Usage (Latest 3 files)';
   } else {
     // 计算日期范围
     const now = new Date();
