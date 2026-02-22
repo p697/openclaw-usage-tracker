@@ -7,6 +7,7 @@ Track OpenClaw token usage and cost from session transcripts.
 - Scans session transcript files (`~/.openclaw/agents/*/sessions/*.jsonl`)
 - Extracts token usage (input, output, cacheRead, cacheWrite)
 - Calculates costs based on model pricing
+- **Calculates cache hit rate** — `cacheRead / (input + cacheRead) × 100%`
 - Supports filtering by date, session, or time range
 - No API key needed — works directly from local logs
 
@@ -72,16 +73,19 @@ node ~/.openclaw/workspace/skills/usage-tracker/scripts/usage-report.js --simple
   📤 Output:          234,567 tokens  ($3.52)
   💾 Cache Read:      567,890 tokens  ($0.06)
   ✍️  Cache Write:    123,456 tokens  ($0.46)
+  💾 Cache Hit Rate: 31.5%
   💰 Subtotal:       2,160,480 tokens  ($5.52)
 
 🤖 Model: openai/gpt-4o
   📥 Input:           456,789 tokens  ($1.14)
   📤 Output:           89,012 tokens  ($3.36)
+  💾 Cache Hit Rate: 0.0%
   💰 Subtotal:        545,801 tokens  ($4.50)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 💵 Total Cost: $10.02
 📊 Total Tokens: 2,706,281
+💾 Overall Cache Hit Rate: 23.9%
 ```
 
 ## How It Works
@@ -90,14 +94,16 @@ node ~/.openclaw/workspace/skills/usage-tracker/scripts/usage-report.js --simple
 2. **Timestamp filtering**: Each session file has a timestamp in filename → accurate date filtering
 3. **Usage extraction**: Parses `usage` field from each message turn
 4. **Cost calculation**: Uses built-in pricing table (anthropic/claude-*, openai/gpt-*, google/gemini-*)
-5. **Aggregation**: Groups by model, sums tokens, calculates costs
+5. **Cache hit rate**: Calculates `cacheRead / (input + cacheRead) × 100%` per model and overall
+6. **Aggregation**: Groups by model, sums tokens, calculates costs
 
 ## Features
 
 - ✅ **No API needed** — works offline from local logs
 - ✅ **Accurate timestamps** — based on session file creation time
 - ✅ **Multi-model support** — tracks all models separately
-- ✅ **Cache-aware** — differentiates cache read/write costs
+- ✅ **Cache-aware** — differentiates cache read/write costs + calculates hit rates
+- ✅ **Cache hit rate tracking** — per-model and overall cache efficiency metrics
 - ✅ **Flexible filtering** — by date, range, or current session
 - ✅ **Clean output** — formatted with emoji and tables
 
